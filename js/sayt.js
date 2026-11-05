@@ -317,24 +317,42 @@ if (ws) {
 }
 
 // 8) 3D ko'rinish: avval tayyor surat; 3D faqat tugma bosilganda yuklanadi.
-// Kuchsiz kompyuterda (≤4 oqim yoki ≤4 GB xotira) — o'zi aylanmaydi, soyasiz, kichikroq sifat.
+// Kuchsiz kompyuterda (≤4 oqim yoki ≤4 GB xotira) — soyasiz va kichikroq sifatda chiziladi, aylanish qoladi.
 const m3d = document.querySelector('[data-m3d]');
 if (m3d) {
-  const mv = m3d.querySelector('model-viewer');
+  const tpl = m3d.querySelector('model-viewer').cloneNode(false); // toza nusxa (src'siz)
+  let mv = m3d.querySelector('model-viewer');
   const side = m3d.parentElement;
   const tabs = [...side.querySelectorAll('.m3d__tab')];
   const poster = m3d.querySelector('[data-m3d-poster]');
   const weak = (navigator.hardwareConcurrency || 4) <= 4 || (navigator.deviceMemory || 8) <= 4
-    || matchMedia('(prefers-reduced-motion: reduce)').matches || navigator.connection?.saveData === true;
+    || navigator.connection?.saveData === true;
+  if (weak) tpl.setAttribute('shadow-intensity', '0');
   let src = tabs[0].dataset.src;
   let started = false;
-  mv.addEventListener('load', () => m3d.classList.add('is-ready'));
-  const show = (u) => { m3d.classList.remove('is-ready'); mv.setAttribute('src', u); };
+  let inView = true;
+  let token = 0;
+  // Har model uchun yangi <model-viewer>: bitta elementda src almashtirilganda yangi model chiqmay qolardi.
+  // Yangisi yuklanguncha shu modelning surati va «yuklanmoqda» ko'rinadi.
+  const show = (u) => {
+    const my = ++token;
+    const el = tpl.cloneNode(false);
+    el.alt = poster.alt;
+    el.toggleAttribute('auto-rotate', inView);
+    const ready = () => { if (my === token) m3d.classList.add('is-ready'); };
+    el.addEventListener('load', ready, { once: true });
+    m3d.classList.remove('is-ready');
+    mv.replaceWith(el);
+    mv = el;
+    el.setAttribute('src', u);
+    // ba'zi brauzerlarda «load» kelmay qoladi — model ko'ringanini o'zimiz ham tekshiramiz
+    let n = 0;
+    const t = setInterval(() => { if (my !== token) return clearInterval(t); if (el.modelIsVisible || ++n > 75) { clearInterval(t); ready(); } }, 400);
+  };
   const start = () => {
     if (started) return;
     started = true;
     m3d.classList.add('is-started');
-    if (weak) { mv.removeAttribute('auto-rotate'); mv.setAttribute('shadow-intensity', '0'); }
     import(m3d.dataset.viewer).then((mod) => {
       const MV = mod.ModelViewerElement || customElements.get('model-viewer');
       if (weak && MV) { MV.minimumRenderScale = 0.5; MV.maximumRenderScale = 1; }
@@ -343,8 +361,8 @@ if (m3d) {
   };
   m3d.querySelector('[data-m3d-play]').addEventListener('click', start);
   // 3D ekrandan chiqsa — aylanish to'xtaydi (model-viewer o'zi ham chizishni to'xtatadi)
-  if ('IntersectionObserver' in window && !weak) {
-    new IntersectionObserver((en) => { if (started) mv.toggleAttribute('auto-rotate', en[0].isIntersecting); }).observe(m3d);
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((en) => { inView = en[0].isIntersecting; if (started) mv.toggleAttribute('auto-rotate', inView); }).observe(m3d);
   }
   tabs.forEach((b) => b.addEventListener('click', () => {
     if (b.getAttribute('aria-pressed') === 'true') return;
@@ -353,7 +371,6 @@ if (m3d) {
     const l = side.querySelector('[data-m3d-link]'); l.href = b.dataset.href; l.textContent = b.dataset.label;
     const c = side.querySelector('[data-m3d-credit]'); c.href = b.dataset.creditUrl; c.textContent = b.dataset.credit;
     poster.src = b.dataset.poster; poster.alt = b.dataset.name;
-    mv.alt = b.dataset.name;
     src = b.dataset.src;
     if (started) show(src);
   }));
