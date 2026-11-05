@@ -331,6 +331,7 @@ if (m3d) {
   let src = tabs[0].dataset.src;
   let started = false;
   let inView = true;
+  const coarse = matchMedia('(pointer: coarse)').matches;
   let token = 0;
   // Har model uchun yangi <model-viewer>: bitta elementda src almashtirilganda yangi model chiqmay qolardi.
   // Yangisi yuklanguncha shu modelning surati va «yuklanmoqda» ko'rinadi.
@@ -339,6 +340,9 @@ if (m3d) {
     const el = tpl.cloneNode(false);
     el.alt = poster.alt;
     el.toggleAttribute('auto-rotate', inView);
+    // telefonda: 3D ochilgach barmoq har tomonga surilganda model aylanadi (sahifa emas);
+    // pan-y bo'lganda yuqoriga-pastga yoki qiya surish sahifani aylantirib yuborardi
+    if (coarse) el.setAttribute('touch-action', 'none');
     const ready = () => { if (my === token) m3d.classList.add('is-ready'); };
     el.addEventListener('load', ready, { once: true });
     m3d.classList.remove('is-ready');

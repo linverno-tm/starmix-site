@@ -482,7 +482,7 @@ svg[aria-hidden] { fill: currentColor; }
 .m3d__stage { position: relative; aspect-ratio: 1; border-radius: var(--r-l); overflow: hidden; background: radial-gradient(circle at 50% 42%, #fff 0, var(--ice) 55%, var(--ice-2) 100%); }
 .m3d__mv { display: block; width: 100%; height: 100%; --poster-color: transparent; background: transparent; opacity: 0; transition: opacity var(--t-slow); }
 .m3d__stage.is-ready .m3d__mv { opacity: 1; }
-.m3d__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transition: opacity var(--t-slow); }
+.m3d__poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; transition: opacity var(--t-slow); }
 .m3d__stage.is-ready .m3d__poster { opacity: 0; pointer-events: none; }
 .m3d__mv { position: absolute; inset: 0; }
 .m3d__play { position: absolute; left: 50%; bottom: 18px; translate: -50% 0; display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 22px 0 16px; border: 0; border-radius: 999px; background: var(--ink); color: #fff; font: inherit; font-weight: 600; cursor: pointer; box-shadow: 0 8px 24px rgb(16 32 48 / .22); transition: background var(--t-fast), scale var(--t-fast); }
@@ -490,7 +490,7 @@ svg[aria-hidden] { fill: currentColor; }
 .m3d__play:hover { background: var(--gear); }
 .m3d__play:active { scale: .97; }
 .m3d__stage.is-started .m3d__play { display: none; }
-.m3d__ph { position: absolute; inset: 0; margin: 0; display: none; place-content: center; justify-items: center; gap: 14px; color: var(--steel); font-size: .92rem; background: rgb(255 255 255 / .55); transition: opacity var(--t-mid); }
+.m3d__ph { position: absolute; inset: 0; margin: 0; display: none; pointer-events: none; place-content: center; justify-items: center; gap: 14px; color: var(--steel); font-size: .92rem; background: rgb(255 255 255 / .55); transition: opacity var(--t-mid); }
 .m3d__stage.is-started .m3d__ph { display: grid; }
 .m3d__ph .gear { width: 96px; height: 96px; }
 .m3d__stage.is-ready .m3d__ph { opacity: 0; pointer-events: none; }
