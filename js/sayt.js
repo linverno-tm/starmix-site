@@ -316,32 +316,45 @@ if (ws) {
   ws.dataset.ready = '1';
 }
 
-// 8) 3D ko'rinish: model-viewer va model faqat blok ekranga yaqinlashganda yuklanadi
+// 8) 3D ko'rinish: avval tayyor surat; 3D faqat tugma bosilganda yuklanadi.
+// Kuchsiz kompyuterda (≤4 oqim yoki ≤4 GB xotira) — o'zi aylanmaydi, soyasiz, kichikroq sifat.
 const m3d = document.querySelector('[data-m3d]');
 if (m3d) {
   const mv = m3d.querySelector('model-viewer');
   const side = m3d.parentElement;
   const tabs = [...side.querySelectorAll('.m3d__tab')];
+  const poster = m3d.querySelector('[data-m3d-poster]');
+  const weak = (navigator.hardwareConcurrency || 4) <= 4 || (navigator.deviceMemory || 8) <= 4
+    || matchMedia('(prefers-reduced-motion: reduce)').matches || navigator.connection?.saveData === true;
+  let src = tabs[0].dataset.src;
   let started = false;
-  const show = (src) => { m3d.classList.remove('is-ready'); mv.setAttribute('src', src); };
   mv.addEventListener('load', () => m3d.classList.add('is-ready'));
+  const show = (u) => { m3d.classList.remove('is-ready'); mv.setAttribute('src', u); };
   const start = () => {
     if (started) return;
     started = true;
-    import(m3d.dataset.viewer).then(() => show(mv.dataset.src)).catch(() => { started = false; });
+    m3d.classList.add('is-started');
+    if (weak) { mv.removeAttribute('auto-rotate'); mv.setAttribute('shadow-intensity', '0'); }
+    import(m3d.dataset.viewer).then((mod) => {
+      const MV = mod.ModelViewerElement || customElements.get('model-viewer');
+      if (weak && MV) { MV.minimumRenderScale = 0.5; MV.maximumRenderScale = 1; }
+      show(src);
+    }).catch(() => { started = false; m3d.classList.remove('is-started'); });
   };
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver((en) => { if (en.some((x) => x.isIntersecting)) { io.disconnect(); start(); } }, { rootMargin: '300px' });
-    io.observe(m3d);
-  } else start();
+  m3d.querySelector('[data-m3d-play]').addEventListener('click', start);
+  // 3D ekrandan chiqsa — aylanish to'xtaydi (model-viewer o'zi ham chizishni to'xtatadi)
+  if ('IntersectionObserver' in window && !weak) {
+    new IntersectionObserver((en) => { if (started) mv.toggleAttribute('auto-rotate', en[0].isIntersecting); }).observe(m3d);
+  }
   tabs.forEach((b) => b.addEventListener('click', () => {
     if (b.getAttribute('aria-pressed') === 'true') return;
     tabs.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     side.querySelector('[data-m3d-note]').textContent = b.dataset.note;
     const l = side.querySelector('[data-m3d-link]'); l.href = b.dataset.href; l.textContent = b.dataset.label;
     const c = side.querySelector('[data-m3d-credit]'); c.href = b.dataset.creditUrl; c.textContent = b.dataset.credit;
+    poster.src = b.dataset.poster; poster.alt = b.dataset.name;
     mv.alt = b.dataset.name;
-    mv.dataset.src = b.dataset.src;
-    if (started) show(b.dataset.src); else start();
+    src = b.dataset.src;
+    if (started) show(src);
   }));
 }
