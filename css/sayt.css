@@ -390,3 +390,18 @@ svg[aria-hidden] { fill: currentColor; }
 .foot__logo { display: inline-block; background: #fff; border-radius: var(--r-m); padding: 12px 16px; margin-bottom: 16px; }
 .foot__logo img { height: 44px; width: auto; margin: 0; }
 .finder__clear { border: 0; background: none; color: var(--gear); text-decoration: underline; cursor: pointer; padding: 6px 4px; }
+
+/* Qidiruv takliflari: 3 qator ko'rinadi, qolgani ichida aylantiriladi */
+.sug { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 6px; list-style: none; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 14px 34px rgb(3 42 72 / .16); max-height: calc(3 * 56px + 12px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.sug[hidden] { display: none; }
+.sug__o { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 10px; border-radius: 12px; cursor: pointer; color: var(--ink); }
+.sug__o:hover, .sug__o[aria-selected="true"] { background: var(--ice); }
+.sug__o img { flex: none; width: 40px; height: 40px; object-fit: contain; mix-blend-mode: multiply; background: var(--ice); border-radius: 8px; }
+.sug__t { display: grid; min-width: 0; }
+.sug__n { font-size: .95rem; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sug__n mark { background: none; color: var(--gear); font-weight: 700; }
+.sug__c { font-size: .8rem; color: var(--steel); }
+.sug__ic { flex: none; width: 40px; height: 40px; border-radius: 8px; background: var(--ink); mask: none; position: relative; }
+.sug__ic::after { content: ""; position: absolute; inset: 12px; border: 2px solid #fff; border-radius: 3px; box-shadow: 5px -5px 0 -2px var(--ink), 5px -5px 0 0 #fff; }
+.sug__o--all { justify-content: center; font-weight: 600; color: var(--gear); min-height: 48px; }
+.sug__none { padding: 14px 12px; color: var(--steel); font-size: .92rem; }

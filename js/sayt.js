@@ -153,3 +153,75 @@ for (const el of document.querySelectorAll('[data-since]')) {
   const ru = n % 10 === 1 && n % 100 !== 11 ? 'год' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'года' : 'лет';
   el.textContent = `${n} ${el.dataset.unit === 'yil' ? 'yil' : ru}`;
 }
+
+// 6) Qidiruv takliflari: birinchi harfdan, ro'yxatda 3 qator ko'rinadi, qolgani aylantiriladi
+const SUG_T = {
+  uz: { cat: 'Toifa', all: (n) => `Hammasini ko‘rish — ${n} ta`, none: 'Hech narsa topilmadi. Boshqa so‘z bilan urinib ko‘ring.' },
+  ru: { cat: 'Раздел', all: (n) => `Показать все — ${n}`, none: 'Ничего не найдено. Попробуйте другое слово.' },
+}[LANG];
+let sugIndex;
+const loadIndex = () => (sugIndex ||= fetch(`${BASE}data/katalog-${LANG}.json`).then((r) => r.json()).then((data) => {
+  const fold = (s) => s.toLowerCase().replace(/[ʻʼ'‘’`]/g, '').replace(/ё/g, 'е');
+  const cats = new Map();
+  for (const p of data) if (!cats.has(p.c)) cats.set(p.c, { c: p.c, n: p.cn, f: fold(p.cn), count: 0 });
+  for (const p of data) cats.get(p.c).count += 1;
+  return { fold, cats: [...cats.values()], items: data.map((p) => ({ ...p, f: fold(p.n), h: fold(`${p.a} ${p.cn} ${p.b.join(' ')}`) })) };
+}));
+const ROOT = `${BASE}${LANG === 'ru' ? 'ru/' : ''}`;
+const escH = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// moslik qismini <mark> bilan ajratamiz (yumshoq belgilarsiz qidiriladi)
+function markHit(name, q) {
+  const i = name.toLowerCase().replace(/ё/g, 'е').indexOf(q);
+  return i < 0 ? escH(name) : `${escH(name.slice(0, i))}<mark>${escH(name.slice(i, i + q.length))}</mark>${escH(name.slice(i + q.length))}`;
+}
+
+for (const form of document.querySelectorAll('[data-suggest]')) {
+  const input = form.querySelector('input');
+  const list = form.querySelector('.sug');
+  let active = -1;
+  let opts = [];
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); active = -1; };
+  const setActive = (i) => {
+    opts.forEach((o, k) => o.setAttribute('aria-selected', String(k === i)));
+    active = i;
+    if (i < 0) { input.removeAttribute('aria-activedescendant'); return; }
+    input.setAttribute('aria-activedescendant', opts[i].id);
+    opts[i].scrollIntoView({ block: 'nearest' });
+  };
+  async function update() {
+    const raw = input.value.trim();
+    if (!raw) { close(); return; }
+    const { fold, cats, items } = await loadIndex();
+    if (input.value.trim() !== raw) return; // yozish davom etgan
+    const q = fold(raw);
+    const words = q.split(/\s+/).filter(Boolean);
+    const rank = (p) => (p.f.startsWith(q) ? 0 : p.f.includes(` ${q}`) || p.f.includes(`(${q}`) ? 1 : p.f.includes(q) ? 2 : 3);
+    const hits = items.filter((p) => words.every((w) => p.h.includes(w))).sort((x, y) => rank(x) - rank(y));
+    const catHits = cats.filter((c) => c.f.startsWith(q) || c.f.includes(` ${q}`)).slice(0, 2);
+    const base = `${form.id || input.id}-o`;
+    let html = catHits.map((c, k) => `<li role="option" id="${base}c${k}" class="sug__o sug__o--cat" data-href="${ROOT}katalog/${c.c}/"><span class="sug__ic" aria-hidden="true"></span><span class="sug__t"><span class="sug__n">${markHit(c.n, raw.toLowerCase())}</span><span class="sug__c">${SUG_T.cat} · ${c.count}</span></span></li>`).join('');
+    html += hits.slice(0, 30).map((p, k) => `<li role="option" id="${base}p${k}" class="sug__o" data-href="${ROOT}mahsulot/${p.s}/"><img src="${BASE}${p.m}" alt="" width="40" height="40" loading="lazy" decoding="async"><span class="sug__t"><span class="sug__n">${markHit(p.n, raw.toLowerCase())}</span><span class="sug__c">${escH(p.cn)}</span></span></li>`).join('');
+    if (hits.length) html += `<li role="option" id="${base}all" class="sug__o sug__o--all" data-href="${ROOT}katalog/?q=${encodeURIComponent(raw)}">${SUG_T.all(hits.length)}</li>`;
+    if (!html) html = `<li class="sug__none" role="presentation">${SUG_T.none}</li>`;
+    list.innerHTML = html;
+    list.scrollTop = 0;
+    opts = [...list.querySelectorAll('[role=option]')];
+    active = -1;
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+  let timer;
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(update, 60); });
+  input.addEventListener('focus', () => { loadIndex(); if (input.value.trim()) update(); }, { passive: true });
+  input.addEventListener('keydown', (e) => {
+    if (list.hidden) { if (e.key === 'ArrowDown' && input.value.trim()) { update(); e.preventDefault(); } return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(Math.min(active + 1, opts.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(Math.max(active - 1, -1)); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); location.href = opts[active].dataset.href; }
+  });
+  // sichqoncha bosilganda input fokusni yo'qotmasin, aks holda ro'yxat yopilib qoladi
+  list.addEventListener('pointerdown', (e) => e.preventDefault());
+  list.addEventListener('click', (e) => { const o = e.target.closest('[role=option]'); if (o) location.href = o.dataset.href; });
+  input.addEventListener('blur', () => setTimeout(close, 0));
+}
