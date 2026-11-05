@@ -165,7 +165,8 @@ svg[aria-hidden] { fill: currentColor; }
   .cat--big { grid-column: span 2; }
   .cat--big a { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr; padding: 24px; column-gap: 20px; }
   .cat--big .cat__img { grid-row: 1 / span 2; grid-column: 1; aspect-ratio: 4 / 3.4; }
-  .cat--big .cat__img img { width: 100%; height: 100%; }
+  .cat--big .cat__img { position: relative; overflow: hidden; min-height: 0; }
+  .cat--big .cat__img img { position: absolute; inset: 0; width: 100%; height: 100%; }
   .cat--big .cat__txt { grid-column: 2; align-self: start; padding-top: 6px; }
   .cat--big .cat__strip { align-self: end; }
   .cat--big .cat__name { font-size: 1.45rem; font-weight: 700; }
@@ -215,7 +216,7 @@ svg[aria-hidden] { fill: currentColor; }
 .mosaic figure { position: relative; height: 100%; border-radius: var(--r-m); overflow: hidden; background: var(--ice-2); }
 .mosaic img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4 / 3; }
 .mosaic figcaption { position: absolute; inset: auto 0 0; padding: 32px 14px 12px; color: #fff; font-size: .92rem; background: linear-gradient(transparent, rgb(3 42 72 / .85)); }
-.mosaic__i--0 { grid-column: span 2; }
+.mosaic__i--0, .mosaic__i--5 { grid-column: span 2; }
 @media (min-width: 900px) {
   .mosaic { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 210px; gap: 14px; }
   .mosaic img { aspect-ratio: auto; }
