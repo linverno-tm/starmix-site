@@ -256,7 +256,8 @@ svg[aria-hidden] { fill: currentColor; }
 .shop__maps { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .shop__maps a { padding: 8px 14px; border-radius: 999px; background: var(--paper); color: var(--ink); text-decoration: none; font-size: .9rem; border: 1px solid var(--line); }
 .shop__maps a:hover { border-color: var(--ink); }
-@media (min-width: 900px) { .shops { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 700px) { .shops { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1150px) { .shops { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /* ---------- ichki sahifalar ---------- */
 .page { padding-block: 20px 72px; }

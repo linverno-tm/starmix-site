@@ -146,3 +146,10 @@ if (finder) {
     render();
   });
 }
+
+// 5) Tajriba yili joriy yil bo'yicha o'zi yangilanadi (sayt qayta yig'ilmasa ham)
+for (const el of document.querySelectorAll('[data-since]')) {
+  const n = new Date().getFullYear() - Number(el.dataset.since);
+  const ru = n % 10 === 1 && n % 100 !== 11 ? 'год' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'года' : 'лет';
+  el.textContent = `${n} ${el.dataset.unit === 'yil' ? 'yil' : ru}`;
+}
