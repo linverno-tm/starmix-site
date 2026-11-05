@@ -225,3 +225,123 @@ for (const form of document.querySelectorAll('[data-suggest]')) {
   list.addEventListener('click', (e) => { const o = e.target.closest('[role=option]'); if (o) location.href = o.dataset.href; });
   input.addEventListener('blur', () => setTimeout(close, 0));
 }
+
+// 7) Ustaxona yig'uvchi: tur, tanlangan modellar va o'chirilganlar URL'da saqlanadi (havolani yuborsa bo'ladi)
+const ws = document.querySelector('[data-ws]');
+if (ws) {
+  const names = JSON.parse(ws.dataset.names);
+  const radios = [...ws.querySelectorAll('.wtype__r')];
+  const roles = [...ws.querySelectorAll('.wrole')];
+  const sumList = ws.querySelector('[data-sumlist]');
+  const total = ws.querySelector('[data-total]');
+  const empty = ws.querySelector('[data-empty]');
+  const send = ws.querySelector('[data-send]');
+  const copyBtn = ws.querySelector('[data-copy]');
+  const copyMsg = ws.querySelector('[data-copymsg]');
+  const q = new URLSearchParams(location.search);
+  const picked = Object.fromEntries((q.get('s') || '').split(',').filter(Boolean).map((x) => x.split('.')));
+  const off = new Set((q.get('x') || '').split(',').filter(Boolean));
+  let type = names[q.get('t')] ? q.get('t') : radios[0].value;
+  radios.forEach((r) => { r.checked = r.value === type; });
+
+  const chosenBtn = (li, id) => li.querySelector(`.wopt[data-id="${id}"]`);
+  function setChoice(li, id) {
+    const b = chosenBtn(li, id);
+    if (!b) return;
+    li.querySelectorAll('.wopt').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    const name = li.querySelector('.wrole__name');
+    name.textContent = b.dataset.name;
+    name.href = b.dataset.href;
+    li.querySelector('.wrole__img').href = b.dataset.href;
+    li.querySelector('.wrole__img img').src = b.dataset.src;
+  }
+  const defaultFor = (li) => JSON.parse(li.dataset.def)[type] || li.dataset.opt0;
+  const active = () => roles.filter((li) => li.dataset.types.split(' ').includes(type));
+  const currentName = (li) => li.querySelector('.wrole__name').textContent;
+
+  function render() {
+    for (const li of roles) {
+      const inType = li.dataset.types.split(' ').includes(type);
+      li.hidden = !inType;
+      if (!inType) continue;
+      if (li.querySelector('.wopt')) setChoice(li, picked[li.dataset.role] || defaultFor(li));
+      const on = !off.has(li.dataset.role);
+      li.querySelector('.wrole__inc input').checked = on;
+      li.classList.toggle('is-off', !on);
+    }
+    ws.querySelectorAll('.wstage').forEach((st) => { st.hidden = !st.dataset.types.split(' ').includes(type); });
+    const list = active().filter((li) => !off.has(li.dataset.role));
+    total.textContent = list.length;
+    ws.querySelector('[data-total2]').textContent = list.length;
+    sumList.innerHTML = list.map((li) => `<li>${currentName(li).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}<span>${li.dataset.rname}</span></li>`).join('');
+    empty.hidden = list.length > 0;
+    // havola holati
+    const p = new URLSearchParams({ t: type });
+    const s = Object.entries(picked).filter(([r]) => active().some((li) => li.dataset.role === r)).map(([r, id]) => `${r}.${id}`);
+    if (s.length) p.set('s', s.join(','));
+    const x = [...off].filter((r) => active().some((li) => li.dataset.role === r));
+    if (x.length) p.set('x', x.join(','));
+    if (ws.dataset.ready) history.replaceState(null, '', `${location.pathname}?${p}`);
+    const link = `${ws.dataset.page}?${p}`;
+    const text = `${ws.dataset.msg} (${names[type]}):\n${list.map((li, i) => `${i + 1}. ${li.dataset.rname} — ${currentName(li)}`).join('\n')}`;
+    send.href = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    send.toggleAttribute('aria-disabled', !list.length);
+    ws.dataset.text = `${text}\n\n${link}`;
+  }
+
+  radios.forEach((r) => r.addEventListener('change', () => { type = r.value; render(); }));
+  ws.addEventListener('click', (e) => {
+    const b = e.target.closest('.wopt');
+    if (!b) return;
+    const li = b.closest('.wrole');
+    picked[li.dataset.role] = b.dataset.id;
+    off.delete(li.dataset.role);
+    render();
+  });
+  ws.addEventListener('change', (e) => {
+    const cb = e.target.closest('.wrole__inc input');
+    if (!cb) return;
+    const r = cb.closest('.wrole').dataset.role;
+    if (cb.checked) off.delete(r); else off.add(r);
+    render();
+  });
+  copyBtn.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(ws.dataset.text); copyMsg.textContent = ws.dataset.copied; } catch { copyMsg.textContent = ''; }
+    setTimeout(() => { copyMsg.textContent = ''; }, 2500);
+  });
+  // mobil: ro'yxat bloki ko'ringanda pastdagi tugma yashirinadi
+  const sum = ws.querySelector('.ws__sum');
+  if ('IntersectionObserver' in window) new IntersectionObserver((en) => ws.classList.toggle('sum-in-view', en[0].isIntersecting)).observe(sum);
+  render();
+  ws.dataset.ready = '1';
+}
+
+// 8) 3D ko'rinish: model-viewer va model faqat blok ekranga yaqinlashganda yuklanadi
+const m3d = document.querySelector('[data-m3d]');
+if (m3d) {
+  const mv = m3d.querySelector('model-viewer');
+  const side = m3d.parentElement;
+  const tabs = [...side.querySelectorAll('.m3d__tab')];
+  let started = false;
+  const show = (src) => { m3d.classList.remove('is-ready'); mv.setAttribute('src', src); };
+  mv.addEventListener('load', () => m3d.classList.add('is-ready'));
+  const start = () => {
+    if (started) return;
+    started = true;
+    import(m3d.dataset.viewer).then(() => show(mv.dataset.src)).catch(() => { started = false; });
+  };
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((en) => { if (en.some((x) => x.isIntersecting)) { io.disconnect(); start(); } }, { rootMargin: '300px' });
+    io.observe(m3d);
+  } else start();
+  tabs.forEach((b) => b.addEventListener('click', () => {
+    if (b.getAttribute('aria-pressed') === 'true') return;
+    tabs.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    side.querySelector('[data-m3d-note]').textContent = b.dataset.note;
+    const l = side.querySelector('[data-m3d-link]'); l.href = b.dataset.href; l.textContent = b.dataset.label;
+    const c = side.querySelector('[data-m3d-credit]'); c.href = b.dataset.creditUrl; c.textContent = b.dataset.credit;
+    mv.alt = b.dataset.name;
+    mv.dataset.src = b.dataset.src;
+    if (started) show(b.dataset.src); else start();
+  }));
+}
