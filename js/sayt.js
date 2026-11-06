@@ -6,52 +6,61 @@ const T = {
   ru: { found: (n) => `Найдено: ${n}`, all: 'Все' },
 }[LANG];
 
-// 1) Hero lupasi: tanlangan uskunani lupaga qo'yadi, g'ildirak buriladi
+// 1) Hero lupasi: uskunalar o'zi almashib turadi (har 5 soniyada), g'ildirak buriladi.
+// Faol tugma atrofidagi halqa keyingi almashishgacha to'ladi; sichqoncha lupa ustida bo'lsa to'xtaydi.
 const lens = document.querySelector('[data-lens]');
 if (lens) {
   const buttons = [...document.querySelectorAll('.picker__b')];
   const img = lens.querySelector('.lens__img');
   const links = lens.querySelectorAll('a');
   const cap = lens.querySelector('.lens__cap');
+  const vis = lens.closest('.hero__vis') || lens;
   let turn = 0;
   let current = 0;
-  for (const b of buttons) {
-    b.addEventListener('click', () => {
-      const i = Number(b.dataset.i);
-      if (i === current) return;
-      turn += (i > current ? 1 : -1) * 24; // mexanizm «chiqillashi»: kichik qadam
-      current = i;
-      lens.style.setProperty('--turn', `${turn}deg`);
-      buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      lens.classList.add('is-swapping');
-      const next = new Image();
-      next.src = b.dataset.src;
-      const swap = () => {
-        img.removeAttribute('srcset');
-        img.src = b.dataset.src;
-        img.alt = b.dataset.name;
-        links.forEach((a) => { a.href = b.dataset.href; });
-        cap.querySelector('a').textContent = b.dataset.name;
-        cap.querySelector('span').textContent = b.dataset.cat;
-        requestAnimationFrame(() => lens.classList.remove('is-swapping'));
-      };
-      next.decode().then(swap, swap);
+  let busy = false;
+  const go = (i, dir) => {
+    if (i === current || busy) return;
+    const b = buttons[i];
+    busy = true;
+    turn += dir * 60; // g'ildirak bir «tish» emas, ko'zga ko'rinadigan burilish
+    current = i;
+    lens.style.setProperty('--turn', `${turn}deg`);
+    buttons.forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    const next = new Image();
+    next.src = b.dataset.src;
+    const out = img.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${-dir * 28}%) rotate(${-dir * 10}deg) scale(.85)` }], { duration: 320, easing: 'cubic-bezier(.4,0,1,1)', fill: 'forwards' });
+    const capOut = cap.animate([{ opacity: 1, translate: '-50% 0' }, { opacity: 0, translate: '-50% 10px' }], { duration: 220, fill: 'forwards' });
+    Promise.all([next.decode().catch(() => {}), out.finished.catch(() => {})]).then(() => {
+      img.removeAttribute('srcset');
+      img.src = b.dataset.src;
+      img.alt = b.dataset.name;
+      links.forEach((a) => { a.href = b.dataset.href; });
+      cap.querySelector('a').textContent = b.dataset.name;
+      cap.querySelector('span').textContent = b.dataset.cat;
+      out.cancel();
+      capOut.cancel();
+      img.animate([{ opacity: 0, transform: `translateX(${dir * 32}%) rotate(${dir * 12}deg) scale(.8)` }, { opacity: 1, transform: 'none' }], { duration: 650, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+      cap.animate([{ opacity: 0, translate: '-50% 14px' }, { opacity: 1, translate: '-50% 0' }], { duration: 420, delay: 120, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
+      busy = false;
     });
-    b.addEventListener('click', (e) => { if (e.isTrusted) hold = Date.now() + 12000; });
-  }
-  // O'zi almashib turadi: har 4 soniyada keyingi uskuna, g'ildirak bir «chiq» buriladi.
-  // Sichqoncha lupa ustida bo'lsa, qo'lda tanlangandan keyin 12 soniya, ekrandan chiqsa — to'xtaydi.
-  let hold = 0;
-  let over = false;
+  };
+  buttons.forEach((b, i) => b.addEventListener('click', () => go(i, i > current ? 1 : -1)));
+  // halqa to'lganda (CSS animatsiya tugaganda) — keyingi uskuna
   let seen = true;
-  const vis = lens.closest('.hero__vis') || lens;
-  vis.addEventListener('pointerenter', () => { over = true; });
-  vis.addEventListener('pointerleave', () => { over = false; });
-  if ('IntersectionObserver' in window) new IntersectionObserver((en) => { seen = en[0].isIntersecting; }).observe(lens);
-  setInterval(() => {
-    if (over || !seen || document.hidden || Date.now() < hold || buttons.length < 2) return;
-    buttons[(current + 1) % buttons.length].click();
-  }, 4000);
+  let pending = false;
+  const advance = () => {
+    if (!seen || document.hidden) { pending = true; return; }
+    pending = false;
+    go((current + 1) % buttons.length, 1);
+  };
+  buttons.forEach((b) => b.addEventListener('animationend', (e) => { if (e.animationName === 'pick-ring' && b.getAttribute('aria-pressed') === 'true') advance(); }));
+  vis.addEventListener('pointerenter', () => vis.classList.add('is-paused'));
+  vis.addEventListener('pointerleave', () => vis.classList.remove('is-paused'));
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver((en) => { seen = en[0].isIntersecting; if (seen && pending) advance(); }).observe(lens);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && pending) advance(); });
+  if (buttons.length > 1) vis.classList.add('is-auto');
 }
 
 // 2) Mahsulot galereyasi: kichik rasmlar va kattalashtirish oynasi
@@ -332,56 +341,23 @@ if (ws) {
 
 // 8) 3D ko'rinish: avval tayyor surat; 3D faqat tugma bosilganda yuklanadi.
 // Kuchsiz kompyuterda (≤4 oqim yoki ≤4 GB xotira) — soyasiz va kichikroq sifatda chiziladi, aylanish qoladi.
+// Muhim: <model-viewer> bitta va DOM'dan olinmaydi — uni almashtirsak, haqiqiy videokartada
+// rasm birinchi kadrda qotib qolardi (06.11 egasining kompyuterida).
 const m3d = document.querySelector('[data-m3d]');
 if (m3d) {
-  const tpl = m3d.querySelector('model-viewer').cloneNode(false); // toza nusxa (src'siz)
-  let mv = m3d.querySelector('model-viewer');
+  const mv = m3d.querySelector('model-viewer');
   const side = m3d.parentElement;
   const tabs = [...side.querySelectorAll('.m3d__tab')];
   const poster = m3d.querySelector('[data-m3d-poster]');
   const weak = (navigator.hardwareConcurrency || 4) <= 4 || (navigator.deviceMemory || 8) <= 4
     || navigator.connection?.saveData === true;
-  if (weak) tpl.setAttribute('shadow-intensity', '0');
+  if (weak) mv.setAttribute('shadow-intensity', '0');
+  // telefonda: barmoq har tomonga surilganda model aylanadi (sahifa emas)
+  if (matchMedia('(pointer: coarse)').matches) mv.setAttribute('touch-action', 'none');
   let src = tabs[0].dataset.src;
   let started = false;
-  let inView = true;
-  const coarse = matchMedia('(pointer: coarse)').matches;
-  let token = 0;
-  // Har model uchun yangi <model-viewer>: bitta elementda src almashtirilganda yangi model chiqmay qolardi.
-  // Yangisi yuklanguncha shu modelning surati va «yuklanmoqda» ko'rinadi.
-  const show = (u) => {
-    const my = ++token;
-    const el = tpl.cloneNode(false);
-    el.alt = poster.alt;
-    el.toggleAttribute('auto-rotate', inView);
-    // telefonda: 3D ochilgach barmoq har tomonga surilganda model aylanadi (sahifa emas);
-    // pan-y bo'lganda yuqoriga-pastga yoki qiya surish sahifani aylantirib yuborardi
-    if (coarse) el.setAttribute('touch-action', 'none');
-    const ready = () => { if (my === token) m3d.classList.add('is-ready'); };
-    el.addEventListener('load', ready, { once: true });
-    m3d.classList.remove('is-ready');
-    mv.replaceWith(el);
-    mv = el;
-    el.setAttribute('src', u);
-    // ba'zi brauzerlarda «load» kelmay qoladi — model ko'ringanini o'zimiz ham tekshiramiz
-    let n = 0;
-    const t = setInterval(() => { if (my !== token) return clearInterval(t); if (el.modelIsVisible || ++n > 75) { clearInterval(t); ready(); } }, 400);
-  };
-  // Zaxira: ba'zi kompyuterlarda model-viewer'ning o'z aylanishi qotib qolsa, o'zimiz sekin buramiz
-  let prevT = 0;
-  let stuck = 0;
-  let lastT = 0;
-  const spin = (now) => {
-    if (started && inView && !document.hidden && m3d.classList.contains('is-ready') && typeof mv.resetTurntableRotation === 'function') {
-      const tt = mv.turntableRotation;
-      const dt = lastT ? Math.min(now - lastT, 100) : 0;
-      stuck = Math.abs(tt - prevT) < 1e-5 ? stuck + dt : 0;
-      if (stuck > 1200) mv.resetTurntableRotation(tt + dt * 0.000244); // ~14°/s
-      prevT = mv.turntableRotation;
-    }
-    lastT = now;
-    requestAnimationFrame(spin);
-  };
+  const ready = () => m3d.classList.add('is-ready');
+  mv.addEventListener('load', ready);
   const start = () => {
     if (started) return;
     started = true;
@@ -389,14 +365,16 @@ if (m3d) {
     import(m3d.dataset.viewer).then((mod) => {
       const MV = mod.ModelViewerElement || customElements.get('model-viewer');
       if (weak && MV) { MV.minimumRenderScale = 0.5; MV.maximumRenderScale = 1; }
-      show(src);
-      requestAnimationFrame(spin);
+      mv.src = src;
+      // «load» kelmay qolsa ham 30 soniyadan keyin surat olib tashlanadi
+      let n = 0;
+      const t = setInterval(() => { if (mv.modelIsVisible || ++n > 75) { clearInterval(t); ready(); } }, 400);
     }).catch(() => { started = false; m3d.classList.remove('is-started'); });
   };
   m3d.querySelector('[data-m3d-play]').addEventListener('click', start);
-  // 3D ekrandan chiqsa — aylanish to'xtaydi (model-viewer o'zi ham chizishni to'xtatadi)
+  // 3D ekrandan chiqsa — aylanish to'xtaydi
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver((en) => { inView = en[0].isIntersecting; if (started) mv.toggleAttribute('auto-rotate', inView); }).observe(m3d);
+    new IntersectionObserver((en) => { mv.toggleAttribute('auto-rotate', en[0].isIntersecting); }).observe(m3d);
   }
   tabs.forEach((b) => b.addEventListener('click', () => {
     if (b.getAttribute('aria-pressed') === 'true') return;
@@ -405,8 +383,9 @@ if (m3d) {
     const l = side.querySelector('[data-m3d-link]'); l.href = b.dataset.href; l.textContent = b.dataset.label;
     const c = side.querySelector('[data-m3d-credit]'); c.href = b.dataset.creditUrl; c.textContent = b.dataset.credit;
     poster.src = b.dataset.poster; poster.alt = b.dataset.name;
+    mv.alt = b.dataset.name;
     src = b.dataset.src;
-    if (started) show(src);
+    if (started) mv.src = src; // eski model yangisi yuklanguncha ko'rinib turadi
   }));
 }
 
