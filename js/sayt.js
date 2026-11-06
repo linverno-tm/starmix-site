@@ -37,7 +37,21 @@ if (lens) {
       };
       next.decode().then(swap, swap);
     });
+    b.addEventListener('click', (e) => { if (e.isTrusted) hold = Date.now() + 12000; });
   }
+  // O'zi almashib turadi: har 4 soniyada keyingi uskuna, g'ildirak bir «chiq» buriladi.
+  // Sichqoncha lupa ustida bo'lsa, qo'lda tanlangandan keyin 12 soniya, ekrandan chiqsa — to'xtaydi.
+  let hold = 0;
+  let over = false;
+  let seen = true;
+  const vis = lens.closest('.hero__vis') || lens;
+  vis.addEventListener('pointerenter', () => { over = true; });
+  vis.addEventListener('pointerleave', () => { over = false; });
+  if ('IntersectionObserver' in window) new IntersectionObserver((en) => { seen = en[0].isIntersecting; }).observe(lens);
+  setInterval(() => {
+    if (over || !seen || document.hidden || Date.now() < hold || buttons.length < 2) return;
+    buttons[(current + 1) % buttons.length].click();
+  }, 4000);
 }
 
 // 2) Mahsulot galereyasi: kichik rasmlar va kattalashtirish oynasi
@@ -353,6 +367,21 @@ if (m3d) {
     let n = 0;
     const t = setInterval(() => { if (my !== token) return clearInterval(t); if (el.modelIsVisible || ++n > 75) { clearInterval(t); ready(); } }, 400);
   };
+  // Zaxira: ba'zi kompyuterlarda model-viewer'ning o'z aylanishi qotib qolsa, o'zimiz sekin buramiz
+  let prevT = 0;
+  let stuck = 0;
+  let lastT = 0;
+  const spin = (now) => {
+    if (started && inView && !document.hidden && m3d.classList.contains('is-ready') && typeof mv.resetTurntableRotation === 'function') {
+      const tt = mv.turntableRotation;
+      const dt = lastT ? Math.min(now - lastT, 100) : 0;
+      stuck = Math.abs(tt - prevT) < 1e-5 ? stuck + dt : 0;
+      if (stuck > 1200) mv.resetTurntableRotation(tt + dt * 0.000244); // ~14°/s
+      prevT = mv.turntableRotation;
+    }
+    lastT = now;
+    requestAnimationFrame(spin);
+  };
   const start = () => {
     if (started) return;
     started = true;
@@ -361,6 +390,7 @@ if (m3d) {
       const MV = mod.ModelViewerElement || customElements.get('model-viewer');
       if (weak && MV) { MV.minimumRenderScale = 0.5; MV.maximumRenderScale = 1; }
       show(src);
+      requestAnimationFrame(spin);
     }).catch(() => { started = false; m3d.classList.remove('is-started'); });
   };
   m3d.querySelector('[data-m3d-play]').addEventListener('click', start);
@@ -378,4 +408,32 @@ if (m3d) {
     src = b.dataset.src;
     if (started) show(src);
   }));
+}
+
+// 9) Pasport raqamlari ekranga chiqqanda noldan sanab chiqadi (20 yil, 500+, 4 ta…)
+const counters = [...document.querySelectorAll('.plate strong')].map((el) => {
+  const m = el.textContent.match(/^(\D*)(\d+)(.*)$/s);
+  return m && { el, pre: m[1], n: Number(m[2]), post: m[3] };
+}).filter(Boolean);
+if (counters.length && 'IntersectionObserver' in window) {
+  const io = new IntersectionObserver((en) => {
+    for (const e of en) {
+      if (!e.isIntersecting) continue;
+      io.unobserve(e.target);
+      const c = counters.find((x) => x.el === e.target);
+      const t0 = performance.now();
+      const dur = 1400;
+      const step = (now) => {
+        const k = Math.min((now - t0) / dur, 1);
+        const v = Math.round(c.n * (1 - (1 - k) ** 3));
+        c.el.textContent = `${c.pre}${v}${c.post}`;
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+  }, { threshold: 0.6 });
+  for (const c of counters) {
+    if (c.el.getBoundingClientRect().top > innerHeight) c.el.textContent = `${c.pre}0${c.post}`;
+    io.observe(c.el);
+  }
 }
